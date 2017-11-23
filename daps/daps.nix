@@ -13,8 +13,8 @@ let
     libxslt w3m remake fop jing trang imagemagick python3 dia exiftool
     ghostscript inkscape optipng xfig poppler_utils docbook_xml_dtd_45
     docbook_xml_dtd_44 docbook_xml_dtd_43 docbook_xml_dtd_42
-    docbook_xml_dtd_412 docbook5 docbook5_xsl getopt docbook_xsl_ns
-    which xmlstarlet bash autoreconfHook aspellWithDicts
+    docbook_xml_dtd_412 docbook5 docbook5_xsl getopt docbook_xsl
+    which xmlstarlet bash autoreconfHook aspellWithDicts findXMLCatalogs
 
     lib
   ;
@@ -28,8 +28,9 @@ let
     sha256 = "086bz7xfnzn7ziq0piz9wyghk81n8y4x19xp1i1nhcd00q7y6wcq";
   };
 
-  daps-catalog = runCommand "daps-catalog" {}
-    ''
+  daps-catalog = runCommand "daps-catalog" {
+    propagatedNativeBuildInputs = [ findXMLCatalogs ];
+    } ''
       mkdir -p $out/share/xml/
       cp ${daps-src}/etc/catalog.generic $out/share/xml/catalog.xml
       cp -r ${daps-src}/daps-xslt $out/share/xml/
@@ -38,71 +39,26 @@ let
         --replace "../daps-xslt/" "$out/share/xml/daps-xslt/"
     '';
 
-  svg = fetchurl {
+  svg-src = fetchurl {
     url = "https://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd";
     sha256 = "0kvf5bfr55flg4p5yrn5vrbph77ikl6bdrblmpysbj2d5zkrhmbl";
   };
 
-  catalog = runCommand "catalog.xml"
-    {
-      buildInputs = [ libxml2 ];
-      catalogs = [
-        docbook5 docbook5_xsl
-        docbook_xml_dtd_45 docbook_xml_dtd_44 docbook_xml_dtd_43
-        docbook_xml_dtd_42 docbook_xml_dtd_412 docbook_xsl_ns
+  # Can be made into standalone package https://gist.github.com/jtojnar/04ea4d1215933f692b3e53eb5d99bc99
+  svg = runCommand "svg" {
+      nativeBuildInputs = [ libxml2 ];
+      propagatedNativeBuildInputs = [ findXMLCatalogs ];
+    } ''
+    prefix=$out/share/xml/svg-1.1
+    mkdir -p $prefix
+    cp ${svg-src} $prefix
 
-        daps-catalog
-      ];
-    }
-    ''
-      xmlcat() {
-        xmlcatalog --noout "$@" "$out"
-      }
-
-     (
-       echo '<?xml version="1.0"?>';
-       echo '<!DOCTYPE catalog PUBLIC "-//OASIS//DTD Entity Resolution XML Catalog V1.0//EN" "http://www.oasis-open.org/committees/entity/release/1.0/catalog.dtd">';
-       echo '<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">';
-
-      for p in $catalogs; do
-        for d in $p/share/xml $p/xml/dtd $p/xml/xsl; do
-          if [ -d "$d" ]; then
-            for i in $(find $d -name catalog.xml); do
-              echo '<nextCatalog catalog="'$i'" />';
-            done
-          fi
-        done
-      done
-
-      echo '</catalog>'
-
-      ) > $out
-
-      for p in $catalogs; do
-        for d in $p/share/xml $p/xml/dtd $p/xml/xsl; do
-          if [ -d "$d" ]; then
-            find $d -name docbookxi.rng
-          fi
-        done
-      done
-
-      xmlcat --add rewriteURI \
-        "http://docbook.sourceforge.net/release/xsl/current/" \
-        "file://${docbook5_xsl}/share/xml/docbook-xsl-ns/"
-
-      xmlcat --add rewriteURI \
-        "http://docbook.org/xml/5.0/" \
-        "file://${docbook5}/share/xml/docbook-5.0/"
-
-      xmlcat --add rewriteSystem \
-        "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" \
-        "file://${svg}"
-      # xmlcatalog -v $out "urn:x-daps:xslt:profiling:docbook45-profile.xsl"
-
-      xmlcatalog -v $out "http://docbook.org/xml/5.0/rng/docbookxi.rng"
-
-      #sleep 5
-    '';
+    # Generate an XML catalog.
+    cat=$prefix/catalog.xml
+    xmlcatalog --noout --create $cat
+    xmlcatalog --noout --add rewriteSystem \
+      "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" svg11.dtd $cat
+  '';
 in
 stdenv.mkDerivation rec {
   name = "daps-20171116";
@@ -114,6 +70,11 @@ stdenv.mkDerivation rec {
     libxml2 libxslt w3m remake fop jing trang imagemagick python3 dia
     exiftool ghostscript inkscape optipng xfig poppler_utils getopt
     which xmlstarlet aspell
+    docbook5 docbook5_xsl svg
+    docbook_xml_dtd_45 docbook_xml_dtd_44 docbook_xml_dtd_43
+    docbook_xml_dtd_42 docbook_xml_dtd_412 docbook_xsl
+
+    daps-catalog
   ];
 
   configureFlags = [
@@ -123,12 +84,12 @@ stdenv.mkDerivation rec {
   patches = [
     ./daps-init-xmlstarlet.patch
     ./daps-init-source-permissions.patch
-    ./hard-coded-catalog.patch
     ./daps-path.patch
     ./tar-dont-preserve-perms.patch
+    ./root_catalog.patch
   ];
 
-  inherit xmlstarlet catalog;
+  inherit xmlstarlet;
 
   mypath = lib.makeBinPath buildInputs;
 
@@ -145,7 +106,6 @@ stdenv.mkDerivation rec {
     for f in $(find . -type f | grep -v '.png$'); do
       substituteInPlace "$f" \
         --replace "/usr/bin/xsltproc" "${libxslt.bin}/bin/xsltproc" \
-        --replace /etc/xml/catalog ${catalog} \
         --replace /usr/bin/make $(which make) \
         --replace /usr/bin/xmlstarlet ${xmlstarlet}/bin/xmlstarlet \
         --replace /usr/bin/xmlcatalog ${libxml2}/bin/xmlcatalog \
