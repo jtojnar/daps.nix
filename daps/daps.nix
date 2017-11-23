@@ -56,8 +56,7 @@ let
     # Generate an XML catalog.
     cat=$prefix/catalog.xml
     xmlcatalog --noout --create $cat
-    xmlcatalog --noout --add rewriteSystem \
-      "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" svg11.dtd $cat
+    xmlcatalog --noout --add public "-//W3C//DTD SVG 1.1 Basic//EN" svg11.dtd $cat
   '';
 in
 stdenv.mkDerivation rec {
