@@ -1,62 +1,39 @@
 --- a/bin/daps.in
 +++ b/bin/daps.in
-@@ -1732,9 +1732,12 @@
+@@ -1732,7 +1732,7 @@
      if [[ ${DOCBOOK5_STYLE_URI:0:5} = file: ]]; then
          DOCBOOK_STYLES="$DOCBOOK5_STYLE_URI"
      else
 -        DOCBOOK_STYLES=$(xmlcatalog "$XML_MAIN_CATALOG" \
--          "$DOCBOOK5_STYLE_URI" 2>/dev/null) || \
--            exit_on_error "Could not determine the DocBook stylesheet location by resolving \"$DOCBOOK5_STYLE_URI\" via xmlcatalog"
-+        requested_file_found=
-+        for catalog_file in $XML_CATALOG_FILES; do
-+            DOCBOOK_STYLES=$(xmlcatalog "$catalog_file" \
-+              "$DOCBOOK5_STYLE_URI" 2>/dev/null) && requested_file_found=1 && break
-+        done
-+        [[ -z "$requested_file_found" ]] && exit_on_error "Could not determine the DocBook stylesheet location by resolving \"$DOCBOOK5_STYLE_URI\" via xmlcatalog"
++        DOCBOOK_STYLES=$(xmlcatalog "" \
+           "$DOCBOOK5_STYLE_URI" 2>/dev/null) || \
+             exit_on_error "Could not determine the DocBook stylesheet location by resolving \"$DOCBOOK5_STYLE_URI\" via xmlcatalog"
      fi
-     # also get the RNG scheme location
-     #
-@@ -1748,15 +1751,20 @@
+@@ -1748,13 +1748,13 @@
              # leaves loop via break, otherwise continue with 5.0
              #
              D5U="${DOCBOOK5_RNG_URI/@db5version\@/$DB5_VERSION}"
 -            DOCBOOK5_RNG=$(xmlcatalog "$XML_MAIN_CATALOG" "$D5U") && break
-+            for catalog_file in $XML_CATALOG_FILES; do
-+                DOCBOOK5_RNG=$(xmlcatalog "$catalog_file" "$D5U") && break 2
-+            done
++            DOCBOOK5_RNG=$(xmlcatalog "" "$D5U") && break
          done
      else
          if [[ ${DOCBOOK5_RNG_URI:0:5} = file: ]]; then
              DOCBOOK5_RNG="$DOCBOOK5_RNG_URI"
          else
 -            DOCBOOK5_RNG=$(xmlcatalog "$XML_MAIN_CATALOG" \
--              "$DOCBOOK5_RNG_URI" 2>/dev/null) || \
--                exit_on_error "Could not determine the DocBook 5 schema location by resolving \"$DOCBOOK5_RNG_URI\" via xmlcatalog"
-+            requested_file_found=
-+            for catalog_file in $XML_CATALOG_FILES; do
-+                DOCBOOK5_RNG=$(xmlcatalog "$catalog_file" \
-+                  "$DOCBOOK5_RNG_URI" 2>/dev/null) && requested_file_found=1 && break
-+            done
-+            [[ -z "$requested_file_found" ]] && exit_on_error "Could not determine the DocBook 5 schema location by resolving \"$DOCBOOK5_RNG_URI\" via xmlcatalog"
++            DOCBOOK5_RNG=$(xmlcatalog "" \
+               "$DOCBOOK5_RNG_URI" 2>/dev/null) || \
+                 exit_on_error "Could not determine the DocBook 5 schema location by resolving \"$DOCBOOK5_RNG_URI\" via xmlcatalog"
          fi
-     fi
-     # remove file:// or file: (Debian, Tumbleweed) prefix
-@@ -1782,9 +1790,12 @@
+@@ -1782,7 +1782,7 @@
      if [[ ${DOCBOOK4_STYLE_URI:0:5} = file: ]]; then
          DOCBOOK_STYLES="$DOCBOOK4_STYLE_URI"
      else
 -        DOCBOOK_STYLES=$(xmlcatalog "$XML_MAIN_CATALOG" \
--          "$DOCBOOK4_STYLE_URI" 2>/dev/null) || \
--            exit_on_error "Could not determine the DocBook stylesheet location by resolving \"$DOCBOOK4_STYLE_URI\" via xmlcatalog"
-+        requested_file_found=
-+        for catalog_file in $XML_CATALOG_FILES; do
-+            DOCBOOK_STYLES=$(xmlcatalog "$catalog_file" \
-+              "$DOCBOOK4_STYLE_URI" 2>/dev/null) && requested_file_found=1 && break
-+        done
-+        [[ -z "$requested_file_found" ]] && exit_on_error "Could not determine the DocBook stylesheet location by resolving \"$DOCBOOK4_STYLE_URI\" via xmlcatalog"
++        DOCBOOK_STYLES=$(xmlcatalog "" \
+           "$DOCBOOK4_STYLE_URI" 2>/dev/null) || \
+             exit_on_error "Could not determine the DocBook stylesheet location by resolving \"$DOCBOOK4_STYLE_URI\" via xmlcatalog"
      fi
- else
-     exit_on_error "Fatal: Could not determine the DocBook version from $MAIN. Looks like $MAIN is not a DocBook 4/5 document."
 --- a/configure.ac
 +++ b/configure.ac
 @@ -159,12 +159,6 @@
@@ -72,145 +49,75 @@
  dnl -------------------------------------------------------------------------
  AC_MSG_NOTICE([===== Checking for Image conversion tools...])
  
-@@ -198,13 +192,15 @@
- dnl svg DTD
+@@ -199,7 +193,7 @@
  for SVG_DTD in "-//W3C//DTD SVG 1.0//EN" \
                 "-//W3C//DTD SVG 1.1 Basic//EN" ; do
--  AC_MSG_CHECKING([for $SVG_DTD])
-+  for root_catalog in $XML_CATALOG_FILES; do
-+  AC_MSG_CHECKING([for $SVG_DTD in $root_catalog])
-   if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$SVG_DTD" >&2]); then
+   AC_MSG_CHECKING([for $SVG_DTD])
+-  if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$SVG_DTD" >&2]); then
++  if AC_RUN_LOG([$XMLCATALOG --noout "" "$SVG_DTD" >&2]); then
      AC_MSG_RESULT([yes])
      HAVE_SVGDTD=1
    else
-     AC_MSG_RESULT([no])
-   fi
-+  done
- done
- if test -z "$HAVE_SVGDTD"; then
-   HAVE_SVGDTD=0
-@@ -234,13 +230,15 @@
-                "-//OASIS//DTD DocBook XML V4.3//EN" \
+@@ -235,7 +229,7 @@
                 "-//OASIS//DTD DocBook XML V4.4//EN" \
                 "-//OASIS//DTD DocBook XML V4.5//EN" ; do
--  AC_MSG_CHECKING([for $XML_DTD])
-+  for root_catalog in $XML_CATALOG_FILES; do
-+  AC_MSG_CHECKING([for $XML_DTD in $root_catalog])
-   if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XML_DTD" >&2]); then
+   AC_MSG_CHECKING([for $XML_DTD])
+-  if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XML_DTD" >&2]); then
++  if AC_RUN_LOG([$XMLCATALOG --noout "" "$XML_DTD" >&2]); then
      AC_MSG_RESULT([yes])
      HAVE_DOCBOOK=1
    else
-     AC_MSG_RESULT([no])
-   fi
-+  done
- done
- if test -z "$HAVE_DOCBOOK"; then
-   AC_MSG_ERROR([No DocBook 4 DTD not found])
-@@ -257,7 +255,8 @@
-              "-//OASIS//DTD DocBook CALS Table Model V4.5//EN" \
+@@ -258,7 +252,7 @@
               "-//OASIS//DTD XML Exchange Table Model 19990315//EN" \
               ; do
-- AC_MSG_CHECKING([for $IDENT])
-+  for root_catalog in $XML_CATALOG_FILES; do
-+ AC_MSG_CHECKING([for $IDENT in $root_catalog])
-  if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$IDENT" >&2]); then
+  AC_MSG_CHECKING([for $IDENT])
+- if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$IDENT" >&2]); then
++ if AC_RUN_LOG([$XMLCATALOG --noout "" "$IDENT" >&2]); then
      AC_MSG_RESULT([yes])
      HAVE_DOCBOOK_IDENTIFIER=1
-@@ -265,6 +264,7 @@
-     AC_MSG_RESULT([no])
-   fi
- done
-+done
- if test -z "$HAVE_DOCBOOK_IDENTIFIER"; then
-   AC_MSG_WARN([Seems some additional catalog entries for DocBook identifiers are missing])
- fi
-@@ -292,7 +292,8 @@
-            "ISO 8879:1986//ENTITIES Added Math Symbols: Relations//EN//XML" \
+   else
+@@ -293,7 +287,7 @@
             "ISO 8879:1986//ENTITIES Non-Russian Cyrillic//EN//XML" \
               ; do
-- AC_MSG_CHECKING([for $ENT])
-+  for root_catalog in $XML_CATALOG_FILES; do
-+ AC_MSG_CHECKING([for $ENT in $root_catalog])
-  if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$ENT" >&2]); then
+  AC_MSG_CHECKING([for $ENT])
+- if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$ENT" >&2]); then
++ if AC_RUN_LOG([$XMLCATALOG --noout "" "$ENT" >&2]); then
      AC_MSG_RESULT([yes])
      HAVE_ISO_ENTITIES=1
-@@ -300,6 +301,7 @@
-     AC_MSG_RESULT([no])
-   fi
- done
-+done
- if test -z "$HAVE_ISO_ENTITIES"; then
-   AC_MSG_WARN([Seems you do not have any catalog entries for ISO entities])
- fi
-@@ -312,7 +314,8 @@
-                   "http://docbook.org/xml/5.0/rng/docbookxi.rnc" \
+   else
+@@ -313,7 +307,7 @@
                    "http://docbook.org/xml/5.0/rng/docbook.rng" \
                    "http://docbook.org/xml/5.0/rng/docbook.rnc" ; do
--  AC_MSG_CHECKING([for $XML_SCHEMA])
-+  for root_catalog in $XML_CATALOG_FILES; do
-+  AC_MSG_CHECKING([for $XML_SCHEMA in $root_catalog])
-   if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XML_SCHEMA" >&2]); then
+   AC_MSG_CHECKING([for $XML_SCHEMA])
+-  if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XML_SCHEMA" >&2]); then
++  if AC_RUN_LOG([$XMLCATALOG --noout "" "$XML_SCHEMA" >&2]); then
      AC_MSG_RESULT([yes])
      HAVE_DOCBOOK_50=1
-@@ -321,6 +324,7 @@
-     AC_MSG_RESULT([no])
-   fi
- done
-+done
- if test -z "$HAVE_DOCBOOK_50"; then
-   HAVE_DOCBOOK_50=0
-   AC_MSG_WARN([Seems you do not have DocBook 5.0 installed.])
-@@ -336,7 +340,8 @@
-                   "http://docbook.org/xml/5.1/rng/assembly.rnc" \
+     db5_version="5.0"
+@@ -337,7 +331,7 @@
                    "http://docbook.org/xml/5.1/rng/dbits.rng" \
                    "http://docbook.org/xml/5.1/rng/dbits.rnc"  ; do
--  AC_MSG_CHECKING([for $XML_SCHEMA])
-+  for root_catalog in $XML_CATALOG_FILES; do
-+  AC_MSG_CHECKING([for $XML_SCHEMA in $root_catalog])
-   if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XML_SCHEMA" >&2]); then
+   AC_MSG_CHECKING([for $XML_SCHEMA])
+-  if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XML_SCHEMA" >&2]); then
++  if AC_RUN_LOG([$XMLCATALOG --noout "" "$XML_SCHEMA" >&2]); then
      AC_MSG_RESULT([yes])
      HAVE_DOCBOOK_51=1
-@@ -345,6 +350,7 @@
-     AC_MSG_RESULT([no])
-   fi
- done
-+done
- if test -z "$HAVE_DOCBOOK_51"; then
-   HAVE_DOCBOOK_51=0
-   AC_MSG_WARN([Seems you do not have DocBook 5.1 installed.])
-@@ -373,7 +379,8 @@
-             "${DB4_XSLT_URL}profiling/profile.xsl" \
+     db5_version="5.1"
+@@ -374,7 +368,7 @@
              "${DB4_XSLT_URL}xhtml/chunk.xsl" \
              "${DB4_XSLT_URL}xhtml/docbook.xsl"; do
--  AC_MSG_CHECKING([for $XSLT])
-+  for root_catalog in $XML_CATALOG_FILES; do
-+  AC_MSG_CHECKING([for $XSLT in $root_catalog])
-   if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XSLT" >&2]); then
+   AC_MSG_CHECKING([for $XSLT])
+-  if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XSLT" >&2]); then
++  if AC_RUN_LOG([$XMLCATALOG --noout "" "$XSLT" >&2]); then
      AC_MSG_RESULT([yes])
      HAVE_DOCBOOK_STYLESHEETS=1
-@@ -381,6 +388,7 @@
-     AC_MSG_RESULT([no])
-   fi
- done
-+done
- if test -z "$HAVE_DOCBOOK_STYLESHEETS"; then
-   AC_MSG_ERROR([DocBook 4 stylesheets not found])
- fi
-@@ -396,7 +404,8 @@
-             "${DB5_XSLT_URL}profiling/profile.xsl" \
+   else
+@@ -397,7 +391,7 @@
              "${DB5_XSLT_URL}xhtml/chunk.xsl" \
              "${DB5_XSLT_URL}xhtml/docbook.xsl"; do
--  AC_MSG_CHECKING([for $XSLT])
-+  for root_catalog in $XML_CATALOG_FILES; do
-+  AC_MSG_CHECKING([for $XSLT in $root_catalog])
-   if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XSLT" >&2]); then
+   AC_MSG_CHECKING([for $XSLT])
+-  if AC_RUN_LOG([$XMLCATALOG --noout "$root_catalog" "$XSLT" >&2]); then
++  if AC_RUN_LOG([$XMLCATALOG --noout "" "$XSLT" >&2]); then
      AC_MSG_RESULT([yes])
      HAVE_DOCBOOK_5_STYLESHEETS=1
-@@ -404,6 +413,7 @@
-     AC_MSG_RESULT([no])
-   fi
- done
-+done
- if test -z "$HAVE_DOCBOOK_5_STYLESHEETS"; then
-   HAVE_DOCBOOK_5_STYLESHEETS=0
-   AC_MSG_WARN([DocBook ns stylesheets not found])
+   else
